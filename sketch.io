@@ -8,13 +8,9 @@
 assert := Object clone
 assert equal := method(a, b, a == b)
 
-
-# TODO opt-in to `should` monkeypatch
-# TODO explore even more linear syntax:
-# x should equal y
-Object should := method(
+Object proxyFor := method(target,
   proxy := Object clone
-  proxy target := call target
+  proxy target := target
 
   # Forward missing method calls to assert
   # Assumes tests have arity 2. I think we can work around
@@ -27,28 +23,17 @@ Object should := method(
   proxy
 )
 
+# TODO opt-in to `should` monkeypatch
+# TODO explore even more linear syntax:
+# x should equal y
+Object should := method(
+  proxyFor(call target)
+)
+
 # TODO DRY up proxy with should
 Object expect := method(target,
-  proxy := Object clone
-  proxy target := target
-
-  # Forward missing method calls to assert
-  # Assumes tests have arity 2. I think we can work around
-  #  that using performWithArgList if necessary.
-  proxy forward := method(other,
-    methodName := call message name
-
-    # TODO can target be lexically bound?
-    # ATM this only works with proxy target := target
-    assert perform(methodName, target, other)
-  )
-
-  # TODO can I do this with do?
-  # I want to replace these 3 lines with Object clone do (to := proxy),
-  # but "Object does not respond to 'proxy'". Another issue with my understanding
-  #  of lexical scope in Io
   wrapper := Object clone
-  wrapper to := proxy
+  wrapper to := proxyFor(target)
   wrapper
 )
 
