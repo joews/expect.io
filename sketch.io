@@ -3,11 +3,73 @@
 # A small unit testing library for Io
 #
 
-# Matchers
-# TODO more of these
-assert := Object clone
-assert equal := method(a, b, a == b)
+# TODO
+# > More assertions
+# > Assertion-level try/catch so each test can
+#   report on several assertions
+# > Smaller Lobby footprint
+# > Tape output
+# > Auto wire up report to print header and footer without explicit
+#   method calls
+# > Parallel tests
+# > Skip feature
+# > Only feature
 
+# Assertions
+assert := Object clone
+
+AssertError := Exception clone
+
+assert _assert := method(okIfTrue, msg,
+  okIfTrue ifFalse(
+    AssertError raise(msg)
+  )
+
+  msg
+)
+
+assert equal := method(a, b, 
+  _assert(a == b, "#{a} should be equal to #{b}" interpolate)
+)
+
+# Test runner
+passCount := 0
+failCount := 0
+
+# First cut test method, with testcase-level error granularity
+test := method(description, /* testCase, */
+  ("Test: " .. description) println
+  e := try (call evalArgAt(1)) 
+
+  if (e isNil) then (
+    passCount = passCount + 1
+    " - passed" println
+  ) else (
+    failCount = failCount + 1
+    " - failed: #{e error}" interpolate println
+  ) 
+)
+
+#
+# Reporter
+#
+reportStart := method(
+  "# Starting expect.io tests\n" println
+)
+
+reportEnd := method(
+  "\n# Test report" println
+  testCount := passCount + failCount
+  tests := if(testCount == 1, "test", "tests")
+
+  "Ran #{passCount + failCount} #{tests}" interpolate println
+  " - #{passCount} passed" interpolate println
+  " - #{failCount} failed" interpolate println
+)
+
+#
+# expect/should api
+#
 Object proxyFor := method(target,
   proxy := Object clone
   proxy target := target
@@ -24,25 +86,29 @@ Object proxyFor := method(target,
 )
 
 # TODO opt-in to `should` monkeypatch
-# TODO explore even more linear syntax:
-# x should equal y
 Object should := method(
   proxyFor(call target)
 )
 
-# TODO DRY up proxy with should
 Object expect := method(target,
   wrapper := Object clone
   wrapper to := proxyFor(target)
   wrapper
 )
 
-# TODO test with expect.io!
-assert equal(1, 1) println
-assert equal(1, 2) println
 
-1 should equal(1) println
-1 should equal(2) println
+#
+# Testing 
+#
+reportStart()
 
-expect(1) to equal(1) println 
-expect(1) to equal(2) println
+test("This test will pass",
+  1 should equal(1)
+  1 should equal(1)
+)
+
+test("This test will fail",
+  1 should equal(22)
+)
+
+reportEnd()
