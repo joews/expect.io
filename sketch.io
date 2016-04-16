@@ -5,8 +5,8 @@
 
 # TODO
 # > More assertions
-# > Assertion-level try/catch so each test can
-#   report on several assertions
+# > Report test- and assertion-level stats
+# > Don't allow assertions outside tests? then we could expose a single `test` global
 # > Smaller Lobby footprint
 # > Tape output
 # > Auto wire up report to print header and footer without explicit
@@ -14,57 +14,81 @@
 # > Parallel tests
 # > Skip feature
 # > Only feature
+# > Decide how to impl matcher messages - see comments on `equal`
 
 # Assertions
-assert := Object clone
+Matchers := Object clone
 
-AssertError := Exception clone
-
-assert _assert := method(okIfTrue, msg,
-  okIfTrue ifFalse(
-    AssertError raise(msg)
-  )
-
-  msg
-)
-
-assert equal := method(a, b, 
-  _assert(a == b, "#{a} should be equal to #{b}" interpolate)
-)
-
-# Test runner
-passCount := 0
-failCount := 0
-
-# First cut test method, with testcase-level error granularity
-test := method(description, /* testCase, */
-  ("Test: " .. description) println
-  e := try (call evalArgAt(1)) 
-
-  if (e isNil) then (
-    passCount = passCount + 1
-    " - passed" println
-  ) else (
-    failCount = failCount + 1
-    " - failed: #{e error}" interpolate println
-  ) 
+Matchers equal := method(a, b, 
+  a == b
 )
 
 #
 # Reporter
 #
-reportStart := method(
-  "# Starting expect.io tests\n" println
+DevReporter := Object clone do(
+
+  passCount := 0
+  failCount := 0
+
+  reportStart := method(
+    "# Starting expect.io tests\n" println
+  )
+
+  reportTestStart := method(desc,
+    "## Test: #{desc}" interpolate println
+  )
+
+  reportFail := method(msg,
+    failCount = failCount + 1
+    " - failed: #{msg}" interpolate println
+  )
+
+  reportPass := method(msg,
+    passCount = passCount + 1
+    " - passed: #{msg}" interpolate println
+  )
+
+  reportEnd := method(
+    "\n# Test report" println
+    testCount := passCount + failCount
+    tests := if(testCount == 1, "test", "tests")
+
+    "Ran #{passCount + failCount} #{tests}" interpolate println
+    " - #{passCount} passed" interpolate println
+    " - #{failCount} failed" interpolate println
+  )
 )
 
-reportEnd := method(
-  "\n# Test report" println
-  testCount := passCount + failCount
-  tests := if(testCount == 1, "test", "tests")
+# Test runner
+reporter := DevReporter clone
 
-  "Ran #{passCount + failCount} #{tests}" interpolate println
-  " - #{passCount} passed" interpolate println
-  " - #{failCount} failed" interpolate println
+runMatcher := method(name, target, other,
+  # "runMatcher #{name} #{target} #{other}" interpolate println
+  testResult := Matchers perform(name, target, other)
+  # " -> #{testResult}" interpolate println
+
+  if (testResult) then (
+    reporter reportPass("todo pass msg")
+  ) else (
+    reporter reportFail("todo report fail msg")
+  ) 
+
+)
+
+test := method(desc, /* testCase, */
+  reporter reportTestStart(desc)
+  call evalArgAt(1)
+)
+
+
+#
+# assert api
+#
+assert := Object clone
+assert forward := method(a, b,
+  methodName := call message name
+  runMatcher(methodName, a, b)
 )
 
 #
@@ -79,13 +103,14 @@ Object proxyFor := method(target,
   #  that using performWithArgList if necessary.
   proxy forward := method(other,
     methodName := call message name
-    assert perform(methodName, target, other)
+    # "proxy #{target} #{other}" interpolate println
+
+    runMatcher(methodName, target, other)
   )
 
   proxy
 )
 
-# TODO opt-in to `should` monkeypatch
 Object should := method(
   proxyFor(call target)
 )
@@ -96,19 +121,3 @@ Object expect := method(target,
   wrapper
 )
 
-
-#
-# Testing 
-#
-reportStart()
-
-test("This test will pass",
-  1 should equal(1)
-  1 should equal(1)
-)
-
-test("This test will fail",
-  1 should equal(22)
-)
-
-reportEnd()
