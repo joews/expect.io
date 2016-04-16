@@ -19,15 +19,20 @@
 # Assertions
 Matchers := Object clone
 
+# TODO choose an API for exposing a message
+# > return list(result, message) [current choice]
+# > magic last argument contains message - I think this has problems for interpolate.
+# > set last matcher message on Matchers (self lastMessage := ...)
+# > throw with message on fail (no message on pass)
+# > ?
 Matchers equal := method(a, b, 
-  a == b
+  list(a == b, "#{a} should equal #{b}" interpolate)
 )
 
 #
 # Reporter
 #
 DevReporter := Object clone do(
-
   passCount := 0
   failCount := 0
 
@@ -63,15 +68,28 @@ DevReporter := Object clone do(
 # Test runner
 reporter := DevReporter clone
 
+getDefaultMessage := method(name, actual, expected,
+  "#{name}: expected #{expected} but got #{actual}" interpolate
+)
+
 runMatcher := method(name, target, other,
   # "runMatcher #{name} #{target} #{other}" interpolate println
   testResult := Matchers perform(name, target, other)
   # " -> #{testResult}" interpolate println
 
-  if (testResult) then (
-    reporter reportPass("todo pass msg")
+  # Matchers can return result or (result, message)
+  if (testResult isKindOf(list)) then(
+    isPass := testResult first
+    msg := testResult second
   ) else (
-    reporter reportFail("todo report fail msg")
+    isPass := testResult
+    msg := getDefaultMessage(name, target, other)
+  )
+
+  if (isPass) then (
+    reporter reportPass(msg)
+  ) else (
+    reporter reportFail(msg)
   ) 
 
 )
