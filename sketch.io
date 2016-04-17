@@ -5,7 +5,6 @@
 
 # TODO
 # > More assertions
-# > Report test- and assertion-level stats
 # > Don't allow assertions outside tests? then we could expose a single `test` global
 # > Smaller Lobby footprint
 # > Tape output
@@ -15,6 +14,7 @@
 # > Skip feature
 # > Only feature
 # > Decide how to impl matcher messages - see comments on `equal`
+# > Exit 0/1
 
 # Assertions
 Matchers := Object clone
@@ -33,8 +33,26 @@ Matchers equal := method(a, b,
 # Reporter
 #
 DevReporter := Object clone do(
-  passCount := 0
-  failCount := 0
+
+  # Describe the state of a test
+  # TODO extract from reporting logic
+  TestState := Object clone
+  TestState init := method(
+    self passCount := 0
+    self failCount := 0
+  )
+
+  TestState onPass := method(passCount = passCount + 1)
+  TestState onFail := method(failCount = failCount + 1)
+  TestState allPassed := method(failCount == 0)
+
+  suiteState := TestState clone
+
+  # Stack of active test cases (just in case we get nested tests)
+  activeTestStates := list()
+
+  # List of completed test cases
+  completedTestStates := list()
 
   reportStart := method(
     "# Starting expect.io tests\n" println
@@ -42,26 +60,55 @@ DevReporter := Object clone do(
 
   reportTestStart := method(desc,
     "## Test: #{desc}" interpolate println
+    activeTestStates push(TestState clone)
+  )
+
+  reportTestEnd := method(desc,
+    state := activeTestStates pop
+    completedTestStates push(state)
+    " - Complete: #{state passCount} ok, #{state failCount} not ok" interpolate println
   )
 
   reportFail := method(msg,
-    failCount = failCount + 1
+    suiteState onFail
+    activeTestStates last onFail
     " - failed: #{msg}" interpolate println
   )
 
   reportPass := method(msg,
-    passCount = passCount + 1
+    suiteState onPass
+    activeTestStates last onPass
     " - passed: #{msg}" interpolate println
   )
 
   reportEnd := method(
     "\n# Test report" println
-    testCount := passCount + failCount
-    tests := if(testCount == 1, "test", "tests")
 
-    "Ran #{passCount + failCount} #{tests}" interpolate println
+    # Assertions
+    passCount := suiteState passCount
+    failCount := suiteState failCount
+    assertCount := passCount + failCount
+    asserts := if(assertCount == 1, "assertion", "assertions")
+
+    # Tests
+    testCount := completedTestStates size
+    tests := if(testCount == 1, "test", "tests")
+    testPassCount := completedTestStates select(allPassed) size
+    testFailCount := testCount - testPassCount
+
+    # Suite
+    suitePassed := suiteState allPassed
+    suiteResultDesc := if(suitePassed, "passed", "failed")
+
+    "Ran #{testCount} tests" interpolate println
+    " - #{testPassCount} passed" interpolate println 
+    " - #{testFailCount} failed" interpolate println 
+    
+    "\n... with #{assertCount} total #{asserts}" interpolate println
     " - #{passCount} passed" interpolate println
     " - #{failCount} failed" interpolate println
+
+    "\nThe suite #{suiteResultDesc}" interpolate println
   )
 )
 
@@ -97,6 +144,7 @@ runMatcher := method(name, target, other,
 test := method(desc, /* testCase, */
   reporter reportTestStart(desc)
   call evalArgAt(1)
+  reporter reportTestEnd(desc)
 )
 
 
