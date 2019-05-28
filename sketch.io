@@ -141,12 +141,46 @@ runMatcher := method(name, target, other,
 
 )
 
-test := method(desc, /* testCase, */
-  reporter reportTestStart(desc)
-  call evalArgAt(1)
-  reporter reportTestEnd(desc)
+t := false
+
+tests := list()
+
+scheduleReport := method(
+  t ifFalse(
+    "schedule report" println
+    reporter @reportTestEnd
+    t = true
+  ) 
+
 )
 
+test := method(desc, /* testCase, */
+  task := call argAt(1)
+
+  runner := block(
+    "in block" println
+    reporter reportTestStart(desc)
+    doMessage(task)
+  )
+
+  tests @push(runner)
+  Scheduler waitForCorosToComplete
+
+  "planned test" println
+)
+
+Waiter := Object clone
+Waiter w := method(
+  "waiting" println
+  yield
+  wait(0)
+  "waited" println
+  tests println
+  tests foreach(test, test call)
+  reporter reportEnd
+  yield
+
+)
 
 #
 # assert api
@@ -187,3 +221,15 @@ Object expect := method(target,
   wrapper
 )
 
+
+"hi" println
+Waiter @w
+"hi" println
+#currentCoro pause
+"hi" println
+#currentCoro resumeLater
+"hi" println
+
+Scheduler yieldingCoros println
+
+currentCoro setParentCoroutine(Waiter)
